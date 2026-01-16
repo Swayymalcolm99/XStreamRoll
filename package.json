@@ -1,0 +1,28 @@
+{
+  "name": "xstreamroll",
+  "version": "1.0.0",
+  "description": "XStreamRoll Platform - Monorepo",
+  "private": true,
+  "workspaces": [
+    "app",
+    "api", 
+    "xstreamroll-sdk",
+    "xstreamroll-processing"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:app\" \"npm run dev:api\"",
+    "dev:app": "cd app && npm run dev",
+    "dev:api": "cd api && npm run dev",
+    "build": "npm run build:app && npm run build:api",
+    "build:app": "cd app && npm run build",
+    "build:api": "cd api && npm run build",
+    "install:all": "npm install && npm run install:app && npm run install:api && npm run install:xstreamroll-sdk && npm run install:xstreamroll-processing",
+    "install:app": "cd app && npm install",
+    "install:api": "cd api && npm install",
+    "install:xstreamroll-sdk": "cd xstreamroll-sdk && npm install",
+    "install:xstreamroll-processing": "cd xstreamroll-processing && npm install"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
