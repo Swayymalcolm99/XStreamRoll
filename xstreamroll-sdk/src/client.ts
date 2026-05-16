@@ -1,5 +1,5 @@
-import axios from "axios"
-import type { StreamEvent, StreamConfig } from "./types"
+import axios, { type AxiosInstance } from "axios"
+import type { StreamEvent, StreamConfig, AuthTokens, CreateUserDto } from "./types"
 
 /** Named environment presets for base URL resolution. */
 export type ClientEnv = "development" | "staging" | "production"
@@ -13,6 +13,8 @@ const ENV_URLS: Record<ClientEnv, string> = {
 export class StreamingClient {
   private apiUrl: string
   private clientId: string
+  private http: AxiosInstance
+  private tokens: AuthTokens | null = null
 
   constructor(config: StreamConfig) {
     if (config.baseUrl) {
@@ -23,11 +25,67 @@ export class StreamingClient {
       this.apiUrl = config.apiUrl ?? ENV_URLS.development
     }
     this.clientId = config.clientId || `client-${Date.now()}`
+
+    this.http = axios.create({ baseURL: this.apiUrl })
+
+    // Attach Authorization header when tokens are available
+    this.http.interceptors.request.use((req) => {
+      if (this.tokens) {
+        req.headers.Authorization = `Bearer ${this.tokens.accessToken}`
+      }
+      return req
+    })
+
+    // Auto-refresh on 401
+    this.http.interceptors.response.use(
+      (res) => res,
+      async (error) => {
+        const original = error.config
+        if (error.response?.status === 401 && !original._retry && this.tokens?.refreshToken) {
+          original._retry = true
+          await this.refreshToken()
+          original.headers.Authorization = `Bearer ${this.tokens!.accessToken}`
+          return this.http(original)
+        }
+        return Promise.reject(error)
+      }
+    )
   }
+
+  // ── Auth ──────────────────────────────────────────────────────────────────
+
+  async login(email: string, password: string): Promise<AuthTokens> {
+    const { data } = await this.http.post<AuthTokens>("/auth/login", { email, password })
+    this.tokens = data
+    return data
+  }
+
+  async register(dto: CreateUserDto): Promise<AuthTokens> {
+    const { data } = await this.http.post<AuthTokens>("/auth/register", dto)
+    this.tokens = data
+    return data
+  }
+
+  async logout(): Promise<void> {
+    if (this.tokens) {
+      await this.http.post("/auth/logout").catch(() => {})
+    }
+    this.tokens = null
+  }
+
+  async refreshToken(): Promise<AuthTokens> {
+    const { data } = await this.http.post<AuthTokens>("/auth/refresh", {
+      refreshToken: this.tokens?.refreshToken,
+    })
+    this.tokens = data
+    return data
+  }
+
+  // ── Streams ───────────────────────────────────────────────────────────────
 
   async publishEvent(event: StreamEvent): Promise<void> {
     try {
-      await axios.post(`${this.apiUrl}/streams/events`, {
+      await this.http.post("/streams/events", {
         clientId: this.clientId,
         ...event,
         timestamp: new Date().toISOString(),
@@ -40,7 +98,7 @@ export class StreamingClient {
 
   async getStreamStatus(streamId: string): Promise<any> {
     try {
-      const response = await axios.get(`${this.apiUrl}/streams/${streamId}`)
+      const response = await this.http.get(`/streams/${streamId}`)
       return response.data
     } catch (error) {
       console.error("Failed to get stream status:", error)
