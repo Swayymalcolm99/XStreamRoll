@@ -1,10 +1,11 @@
 import axios from "axios"
+import { env } from "./config"
 import { SessionRegistry } from "./session-registry"
 import { ProcessedStreamEvent, StreamEvent } from "./session"
 
-const API_URL = process.env.API_URL ?? "http://localhost:3001"
+const API_URL = env.API_URL
 const WORKER_ID = `worker-${Date.now()}`
-const POLL_INTERVAL_MS = Number(process.env.POLL_INTERVAL_MS ?? 5000)
+const POLL_INTERVAL_MS = Number(env.POLL_INTERVAL_MS)
 const MAX_CONCURRENT_SESSIONS = Math.max(
   1,
   Number(process.env.MAX_CONCURRENT_SESSIONS ?? 32),
